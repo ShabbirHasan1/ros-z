@@ -18,14 +18,27 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Clean existing Nix installation (macOS)
+      - name: Complete Nix cleanup (macOS)
         if: runner.os == 'macOS'
         continue-on-error: true
         run: |
+          # Stop any running Nix daemons
+          sudo launchctl unload /Library/LaunchDaemons/org.nixos.nix-daemon.plist 2>/dev/null || true
+          sudo launchctl unload /Library/LaunchDaemons/org.nixos.darwin-store.plist 2>/dev/null || true
+
+          # Remove build users
           for u in $(seq 1 32); do
             sudo dscl . -delete "/Users/_nixbld$u" 2>/dev/null || true
           done
           sudo dscl . -delete "/Groups/nixbld" 2>/dev/null || true
+
+          # Restore backup config files to prevent "already exists" errors
+          sudo mv /etc/zshrc.backup-before-nix /etc/zshrc 2>/dev/null || true
+          sudo mv /etc/bashrc.backup-before-nix /etc/bashrc 2>/dev/null || true
+
+          # Remove launch daemons
+          sudo rm /Library/LaunchDaemons/org.nixos.nix-daemon.plist 2>/dev/null || true
+          sudo rm /Library/LaunchDaemons/org.nixos.darwin-store.plist 2>/dev/null || true
 
       - name: Install Nix
         uses: cachix/install-nix-action@v27
@@ -36,6 +49,7 @@ jobs:
             accept-flake-config = true
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
+
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
