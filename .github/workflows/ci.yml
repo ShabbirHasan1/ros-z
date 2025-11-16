@@ -1,11 +1,3 @@
-name: CI
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
 jobs:
   ci:
     name: Check, Build, and Test
@@ -18,38 +10,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Complete Nix cleanup (macOS)
-        if: runner.os == 'macOS'
-        continue-on-error: true
-        run: |
-          # Stop any running Nix daemons
-          sudo launchctl unload /Library/LaunchDaemons/org.nixos.nix-daemon.plist 2>/dev/null || true
-          sudo launchctl unload /Library/LaunchDaemons/org.nixos.darwin-store.plist 2>/dev/null || true
-
-          # Remove build users
-          for u in $(seq 1 32); do
-            sudo dscl . -delete "/Users/_nixbld$u" 2>/dev/null || true
-          done
-          sudo dscl . -delete "/Groups/nixbld" 2>/dev/null || true
-
-          # Restore backup config files to prevent "already exists" errors
-          sudo mv /etc/zshrc.backup-before-nix /etc/zshrc 2>/dev/null || true
-          sudo mv /etc/bashrc.backup-before-nix /etc/bashrc 2>/dev/null || true
-
-          # Remove launch daemons
-          sudo rm /Library/LaunchDaemons/org.nixos.nix-daemon.plist 2>/dev/null || true
-          sudo rm /Library/LaunchDaemons/org.nixos.darwin-store.plist 2>/dev/null || true
-
       - name: Install Nix
-        uses: cachix/install-nix-action@v27
+        uses: DeterminateSystems/nix-installer-action@main
         with:
-          nix_path: nixpkgs=channel:nixos-unstable
-          extra_nix_config: |
+          extra-conf: |
             experimental-features = nix-command flakes
             accept-flake-config = true
             extra-substituters = https://ros.cachix.org
             extra-trusted-public-keys = ros.cachix.org-1:dSyZxI8geDCJrwgvCOHDoAfOm5sV1wCPjBkKL+38Rvo=
-
 
       - name: Setup Cachix
         uses: cachix/cachix-action@v15
@@ -73,8 +41,3 @@ jobs:
       - name: Check all features
         run: |
           nix develop .#ci -c cargo check --all-targets --all-features
-
-      # FIXME: This requries the installation of rmw_zenoh_cpp triggering a build from source...
-      # - name: Run unit tests
-      #   run: |
-      #     nix develop .#ci -c cargo test --all-features
